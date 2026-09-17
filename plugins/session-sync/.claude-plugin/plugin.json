@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/claude-code/main/.claude-plugin/plugin-schema.json",
+  "name": "session-sync",
+  "displayName": "Session Sync",
+  "version": "1.0.0",
+  "description": "跨机器同步 Claude Code 会话记录,支持跨绝对路径恢复续聊。",
+  "author": {
+    "name": "fengye"
+  },
+  "license": "MIT",
+  "hooks": "./hooks/hooks.json",
+  "skills": [
+    "./skills"
+  ]
+}

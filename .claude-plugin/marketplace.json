@@ -1,0 +1,13 @@
+{
+  "name": "session-sync-marketplace",
+  "owner": {
+    "name": "fengye"
+  },
+  "plugins": [
+    {
+      "name": "session-sync",
+      "source": "./plugins/session-sync",
+      "version": "1.0.0"
+    }
+  ]
+}
