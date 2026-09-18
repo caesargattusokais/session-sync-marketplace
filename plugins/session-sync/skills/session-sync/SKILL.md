@@ -1,7 +1,7 @@
 ---
 name: session-sync
 description: 跨机器同步 Claude Code 会话记录,支持跨绝对路径恢复续聊
-argument-hint: [setup | push | pull | prune]
+argument-hint: [setup | push | pull | prune | list | show | export]
 shell: bash
 disable-model-invocation: false
 user-invocable: true
@@ -23,9 +23,12 @@ allowed-tools: Bash(bash *)
 - `/session-sync push`   → 导出本机全部会话到共享仓库(hook 在 SessionEnd 也会做)
 - `/session-sync pull`   → 从共享仓库拉取并自动归位(hook 在 SessionStart 也会做)
 - `/session-sync prune [--delete]` → 报告停滞会话;确认后再加 --delete 才删
+- `/session-sync list [--json|-t] [--q 词] [--host 词] [--pull]` → 列出共享仓库里全部(跨机)会话
+- `/session-sync show <sessionId> [--no-thinking] [--full] [--html]` → 把单条会话还原成可读文本
+- `/session-sync export <outdir> [--no-thinking]` → 生成 index.html + 每会话一页,浏览器翻阅
 
 脱敏默认开启(SANITIZE=1):导出的是把明显密钥替换成 `<REDACTED>` 的副本,本机原文件不动。
-push/pull 自带冲突自愈。Windows 原生请先装 Git for Windows。
+push/pull 自带冲突自愈。list/show/export 只读脱敏副本,可直接用。Windows 原生请先装 Git for Windows。
 
 ## 执行(脚本在 allowed-tools 已预批准)
 
@@ -48,6 +51,18 @@ push/pull 自带冲突自愈。Windows 原生请先装 Git for Windows。
 - prune:
   ```bash
   bash "${CLAUDE_SKILL_DIR}/../../scripts/prune.sh"
+  ```
+- list (查跨机会话;可加 --pull 先拉远端最新):
+  ```bash
+  bash "${CLAUDE_SKILL_DIR}/../../scripts/view.sh" list [--json] [-t] [--q "<词>"] [--host "<词>"] [--pull]
+  ```
+- show (还原单条会话,默认收起 thinking):
+  ```bash
+  bash "${CLAUDE_SKILL_DIR}/../../scripts/view.sh" show <sessionId> [--no-thinking] [--full] [--html]
+  ```
+- export (生成 index.html + 每会话一页,浏览器翻阅):
+  ```bash
+  bash "${CLAUDE_SKILL_DIR}/../../scripts/view.sh" export <outdir> [--no-thinking]
   ```
 
 规则:两端绝对路径相同 → 零配置;不同 → 一条 ROOT_MAP;未命中 → 进 `_unclaimed/`,补规则后再 pull。
