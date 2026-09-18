@@ -107,20 +107,36 @@ if [ -n "${REMOTE}" ] && [ -d "${SHARE}/.git" ]; then
   fi
 fi
 
-# ---- 6. 共享仓库可见性提醒:若是 GitHub 公开仓库,红字警告会话将公开 ----
+# ---- 6. 共享仓库可见性检查:按 public/private/未知 区分提醒,并与推送闸门联动 ----
 gh_scan_visibility() {
-  command -v gh >/dev/null 2>&1 || return 0
   local remote full owner repo vis
   remote="$(git -C "${SHARE}" config --get remote.origin.url 2>/dev/null || true)"
-  [[ "${remote}" == *github.com* ]] || return 0
-  full="${remote##*github.com/}"; full="${full%.git}"
+  if [[ "${remote}" != *github.com* ]] || ! command -v gh >/dev/null 2>&1; then
+    echo
+    echo "  ℹ️  未能判断远端可见性(非 GitHub remote 或未装 gh)。"
+    echo "     请自行确保共享仓库为【私有】;装了 gh 后,自动推送默认会被公开仓库闸门拦截。"
+    return 0
+  fi
+  full="${remote##*github.com[:/]}"; full="${full%.git}"
   owner="${full%%/*}"; repo="${full#*/}"
   vis="$(gh repo view "${owner}/${repo}" --json visibility -q .visibility 2>/dev/null || true)"
-  if [ "${vis}" = "public" ]; then
-    echo
-    echo "  ⚠️  远端 ${owner}/${repo} 是【公开】仓库。会话将被整包明文上传,"
-    echo "      其中可能含 token/密码。强烈建议改用【私有】仓库。"
-  fi
+  case "${vis}" in
+    public)
+      echo
+      echo "  ⚠️  远端 ${owner}/${repo} 是【公开】仓库 —— 会话将被整包明文上传(可能含 token/密码)。"
+      echo "     强烈建议改用【私有】。即使保持现状,运行时的自动 push 也会被默认【拦截】;"
+      echo "     真要放行须在 settings.sh 加 ALLOW_PUBLIC_PUSH=1(自担风险)。"
+      ;;
+    private)
+      echo
+      echo "  ✓  远端 ${owner}/${repo} 是【私有】仓库 —— 安全。"
+      echo "     运行时还会按可见性校验,无需手动担心。"
+      ;;
+    *)
+      echo
+      echo "  ?  ${owner}/${repo} 可见性查询失败,请手动到 GitHub 确认它为【私有】。"
+      ;;
+  esac
 }
 gh_scan_visibility
 
