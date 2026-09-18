@@ -43,8 +43,12 @@ for codedir in "${SESSION_HOME}"/*/; do
     fi
   done
 
-  # 来源标记(本次由哪台主机在何时导出)
-  printf 'host=%s date=%s sanitize=%s\n' "${DEBUG_HOST}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$([ "${SANITIZE}" = "1" ] && echo yes || echo no)" > "${dst}/.source"
+  # 来源标记(本次由哪台主机导出)。仅当「host/sanitize 身份」变化时才写:
+  # 同一台机反复导出内容不变,不写 → 避免每轮 session 结束都因时间戳产生空提交。
+  _ident="host=${DEBUG_HOST} sanitize=$([ "${SANITIZE}" = "1" ] && echo yes || echo no)"
+  if [ ! -f "${dst}/.source" ] || ! grep -qF "${_ident}" "${dst}/.source"; then
+    printf 'host=%s date=%s sanitize=%s\n' "${DEBUG_HOST}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$([ "${SANITIZE}" = "1" ] && echo yes || echo no)" > "${dst}/.source"
+  fi
 
   n="$(ls "${dst}"/*.jsonl 2>/dev/null | wc -l)"
   [ "${redacted}" -gt 0 ] && note=" (脱敏 ${redacted} 份)" || note=""

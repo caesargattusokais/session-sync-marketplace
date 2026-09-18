@@ -13,6 +13,9 @@ set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${PLUGIN_DIR}/config.sh"
+source "${PLUGIN_DIR}/lock.sh"
+
+acquire_lock || exit 0
 
 [ -d "${SHARE_ROOT}/sessions" ] || { echo "[session-sync] 没有 sessions/,无需清理"; exit 0; }
 

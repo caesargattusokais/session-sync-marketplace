@@ -11,6 +11,7 @@ SIM="$(mktemp -d)"; trap 'rm -rf "$SIM"' EXIT
 
 SHARE_ROOT="${SIM}/share"          # 提前对 source 的 lock.sh 生效
 source "${S}/scripts/lock.sh"
+source "${S}/scripts/gitutil.sh"
 
 PASS=0; FAIL=0
 ok(){  echo "  ✓ $1"; PASS=$((PASS+1)); }
@@ -32,8 +33,36 @@ _LOCK_MAX=3; _LOCK_SLEEP=0.05        # 缩小超时,加速测试
 mkdir -p "${LOCK_DIR}"; echo "$$" > "${LOCK_DIR}/pid"
 if acquire_lock; then bad "他人持有的锁被错误抢到"; else ok "他人持有锁时不强抢(超时放弃)"; fi
 [ -d "${LOCK_DIR}" ] && ok "失败释放未误删他人锁" || bad "失败释放误删了他人锁"
+unset _LOCK_MAX _LOCK_SLEEP
+
+# 4. 公开 GitHub 仓库 → 推送闸门拦截;显式放行/非 GitHub 则放行
+PUB="${SIM}/pubgate"; git init -q "${PUB}"; git -C "${PUB}" remote add origin https://github.com/acme/leak.git
+gh(){ printf 'public\n'; }                    # gh 桩:模拟 --jq .visibility → 公开
+if ALLOW_PUBLIC_PUSH=0 SHARE_ROOT="${PUB}" gitutil_guard_public; then
+  bad "公开 GitHub 仓库未被安全闸拦截"
+else
+  ok "公开 GitHub 仓库被安全拦截"
+fi
+if ALLOW_PUBLIC_PUSH=1 SHARE_ROOT="${PUB}" gitutil_guard_public; then
+  ok "ALLOW_PUBLIC_PUSH=1 显式放行"
+else
+  bad "显式放行仍被拦截"
+fi
+PRIV="${SIM}/priv"; git init -q "${PRIV}"; git -C "${PRIV}" remote add origin ssh://other.example/x/y.git
+if ALLOW_PUBLIC_PUSH=0 SHARE_ROOT="${PRIV}" gitutil_guard_public; then
+  ok "非 GitHub remote 放行(无从判断)"
+else
+  bad "非 GitHub remote 被误拦"
+fi
+gh() { return 127; }                            # 恢复:gh 不可用也要放行(无法判断)
+if ALLOW_PUBLIC_PUSH=0 SHARE_ROOT="${PUB}" gitutil_guard_public; then
+  ok "gh 不可用时放行并提示,不硬卡"
+else
+  bad "gh 不可用时被误拦"
+fi
+rm -f "${HOME}/.config/session-sync/.public-blocked"
 
 echo
-echo "── 锁测试: PASS=${PASS} FAIL=${FAIL} ──"
+echo "── 锁/安全测试: PASS=${PASS} FAIL=${FAIL} ──"
 [ "${FAIL}" -eq 0 ] || exit 1
 echo "ALL PASSED"

@@ -11,6 +11,7 @@
 #   SANITIZE       1=导出时对会话里的密钥做脱敏(默认 1;0 关闭)
 #   PRUNE_DAYS     停滞清理的「无改动天数」阈值(默认 30;仅 dry-run 报告)
 #   DEBUG_HOST     手动指定“主机标识”(默认取 hostname)
+#   ALLOW_PUBLIC_PUSH  1=显式放行向公开 GitHub 仓库 push(默认拦截,见 gitutil.sh)
 # =====================================================================
 
 SESSION_SYNC_CONF="${SESSION_SYNC_CONF:-$HOME/.config/session-sync/settings.sh}"
@@ -23,6 +24,7 @@ GIT_EMAIL=""
 SANITIZE=""
 PRUNE_DAYS=""
 DEBUG_HOST=""
+ALLOW_PUBLIC_PUSH=""
 
 if [ -f "${SESSION_SYNC_CONF}" ]; then
   # shellcheck disable=SC1090
@@ -35,4 +37,5 @@ GIT_USER="${GIT_USER:-session-sync}"
 GIT_EMAIL="${GIT_EMAIL:-session-sync@local}"
 SANITIZE="${SANITIZE:-1}"
 PRUNE_DAYS="${PRUNE_DAYS:-30}"
+ALLOW_PUBLIC_PUSH="${ALLOW_PUBLIC_PUSH:-0}"
 DEBUG_HOST="${DEBUG_HOST:-$(hostname 2>/dev/null || echo "unknown-host")}"
