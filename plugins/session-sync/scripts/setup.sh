@@ -120,7 +120,7 @@ gh_scan_visibility() {
   full="${remote##*github.com[:/]}"; full="${full%.git}"
   owner="${full%%/*}"; repo="${full#*/}"
   vis="$(gh repo view "${owner}/${repo}" --json visibility -q .visibility 2>/dev/null || true)"
-  case "${vis}" in
+  case "${vis,,}" in
     public)
       echo
       echo "  ⚠️  远端 ${owner}/${repo} 是【公开】仓库 —— 会话将被整包明文上传(可能含 token/密码)。"

@@ -30,7 +30,7 @@ gitutil_guard_public() {
   repo="${remote##*github.com[:/]}"; repo="${repo%.git}"
   vis="$(gh repo view "${repo}" --json visibility --jq .visibility 2>/dev/null)" \
     || { echo "[session-sync] 无法校验共享仓库可见性(gh 不可用),请自行确认它保持私有。" >&2; return 0; }
-  if [ "${vis}" = "public" ]; then
+  if [ "${vis,,}" = "public" ]; then
     warnfile="${HOME}/.config/session-sync/.public-blocked"
     mkdir -p "$(dirname "${warnfile}")" 2>/dev/null || true
     if [ ! -f "${warnfile}" ]; then

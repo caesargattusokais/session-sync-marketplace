@@ -37,7 +37,7 @@ unset _LOCK_MAX _LOCK_SLEEP
 
 # 4. 公开 GitHub 仓库 → 推送闸门拦截;显式放行/非 GitHub 则放行
 PUB="${SIM}/pubgate"; git init -q "${PUB}"; git -C "${PUB}" remote add origin https://github.com/acme/leak.git
-gh(){ printf 'public\n'; }                    # gh 桩:模拟 --jq .visibility → 公开
+gh(){ printf 'PUBLIC\n'; }                 # gh 桩(真实 gh 返回大写):命令被公开
 if ALLOW_PUBLIC_PUSH=0 SHARE_ROOT="${PUB}" gitutil_guard_public; then
   bad "公开 GitHub 仓库未被安全闸拦截"
 else
@@ -53,6 +53,12 @@ if ALLOW_PUBLIC_PUSH=0 SHARE_ROOT="${PRIV}" gitutil_guard_public; then
   ok "非 GitHub remote 放行(无从判断)"
 else
   bad "非 GitHub remote 被误拦"
+fi
+gh(){ printf 'PRIVATE\n'; }                # 真实 gh 私有返回(大写):必须放行
+if ALLOW_PUBLIC_PUSH=0 SHARE_ROOT="${PUB}" gitutil_guard_public; then
+  ok "私有仓库(大写 PRIVATE)不被误拦"
+else
+  bad "私有仓库被误拦"
 fi
 gh() { return 127; }                            # 恢复:gh 不可用也要放行(无法判断)
 if ALLOW_PUBLIC_PUSH=0 SHARE_ROOT="${PUB}" gitutil_guard_public; then
