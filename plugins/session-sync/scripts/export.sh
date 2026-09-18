@@ -41,7 +41,7 @@ for codedir in "${SESSION_HOME}"/*/; do
   done
 
   # 来源标记(本次由哪台主机在何时导出)
-  printf 'host=%s date=%s sanitize=%s\n' "${DEBUG_HOST}" "$(date -Is)" "$([ "${SANITIZE}" = "1" ] && echo yes || echo no)" > "${dst}/.source"
+  printf 'host=%s date=%s sanitize=%s\n' "${DEBUG_HOST}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$([ "${SANITIZE}" = "1" ] && echo yes || echo no)" > "${dst}/.source"
 
   n="$(ls "${dst}"/*.jsonl 2>/dev/null | wc -l)"
   [ "${redacted}" -gt 0 ] && note=" (脱敏 ${redacted} 份)" || note=""
@@ -56,7 +56,7 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
     echo "[session-sync] 无变更,不提交"
   else
     git -c user.name="${GIT_USER}" -c user.email="${GIT_EMAIL}" \
-        commit -m "session-sync: export $(date -Is)" >/dev/null
+        commit -m "session-sync: export $(date -u +%Y-%m-%dT%H:%M:%SZ)" >/dev/null
     gitutil_push
   fi
 else

@@ -66,6 +66,17 @@ declare -A ROOT_MAP=( ["/home/alen"]="/home/fengye" )
 ```
 含义:凡是远端 `/home/alen` 下的会话(含其子目录),在本机放到 `/home/fengye` 对应位置。
 
+## 跨平台(Linux / macOS / Windows 原生)
+
+- **编码不依赖平台**:`cwd_encode` 先把 Windows 反斜杠 `\` 归一为正斜杠 `/`,再折叠非字母数字段,
+  所以 `C:/Users/me/proj`、`C:\Users\me\proj`、`/home/fengye` 跨平台编码一致——
+  同一项目在 Windows 与 Linux 两端也能自动归位。
+- **hooks 用 exec 形式**(hook 定义里 `command: bash` + `args: ["${CLAUDE_PLUGIN_ROOT}/scripts/*.sh"]`),
+  避免不同平台引号/路径转义差异。
+- **Windows 原生(非 WSL)必须装 Git for Windows**:脚本是 bash,靠它自带的 Git Bash 在 hook /
+  skill 里执行(`shell: bash`)。没有 Git Bash(纯 PowerShell)时 hook 会被跳过、skill 不可用。
+- **macOS** 未用 BSD 专属命令(`date -Is` 等已改为 `date -u +...`),开箱即用。
+
 ## 内置特性(都默认开启/可选)
 
 - **脱敏(SANITIZE=1,默认)** —— 导出的是把明显密钥(GitHub PAT / OpenAI key / AWS / Slack /
