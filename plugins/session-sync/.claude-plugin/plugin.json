@@ -8,7 +8,6 @@
     "name": "fengye"
   },
   "license": "MIT",
-  "hooks": "./hooks/hooks.json",
   "skills": [
     "./skills"
   ]
