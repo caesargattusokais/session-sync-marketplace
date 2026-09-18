@@ -107,6 +107,23 @@ if [ -n "${REMOTE}" ] && [ -d "${SHARE}/.git" ]; then
   fi
 fi
 
+# ---- 6. 共享仓库可见性提醒:若是 GitHub 公开仓库,红字警告会话将公开 ----
+gh_scan_visibility() {
+  command -v gh >/dev/null 2>&1 || return 0
+  local remote full owner repo vis
+  remote="$(git -C "${SHARE}" config --get remote.origin.url 2>/dev/null || true)"
+  [[ "${remote}" == *github.com* ]] || return 0
+  full="${remote##*github.com/}"; full="${full%.git}"
+  owner="${full%%/*}"; repo="${full#*/}"
+  vis="$(gh repo view "${owner}/${repo}" --json visibility -q .visibility 2>/dev/null || true)"
+  if [ "${vis}" = "public" ]; then
+    echo
+    echo "  ⚠️  远端 ${owner}/${repo} 是【公开】仓库。会话将被整包明文上传,"
+    echo "      其中可能含 token/密码。强烈建议改用【私有】仓库。"
+  fi
+}
+gh_scan_visibility
+
 echo
 echo "好了,可以开始用了:  /session-sync push  /  /session-sync pull"
 echo "两端路径不同的话,再给 settings.sh 补一条 ROOT_MAP 即可(见文件头注释)。"

@@ -66,6 +66,15 @@ declare -A ROOT_MAP=( ["/home/alen"]="/home/fengye" )
 ```
 含义:凡是远端 `/home/alen` 下的会话(含其子目录),在本机放到 `/home/fengye` 对应位置。
 
+## 内置特性(都默认开启/可选)
+
+- **脱敏(SANITIZE=1,默认)** —— 导出的是把明显密钥(GitHub PAT / OpenAI key / AWS / Slack /
+  password / secret)替换成 `<REDACTED:...>` 的副本,**本机原文件不动**。需要原始内容时可设 `SANITIZE=0`。
+- **冲突自愈** —— 两台机器同时工作时,push 被拒会自动 `pull --rebase --autostash` 后重试;pull 失败给明确提示。
+- **来源标记(host)** —— 每份导出的会话记下是「哪台主机、何时、是否脱敏」导出的,`sessions/<编码>/.source`,pull 时展示来源。
+- **停滞清理(/session-sync prune)** —— 报告「共享里有但本机没有、且多日未更新(默认 30 天)」的会话;默认**只报告不删**,确认后加 `--delete` 才真删(害怕误删另一端在用的,不建议自动删)。
+- **CI(可选)** —— `test/e2e.sh` 端到端回归 + GitHub Actions(`.github/workflows/test.yml`)自动跑语法检查与测试。
+
 ## 限制(请知悉)
 
 - 会话 jsonl 里的「工具调用绝对路径」是导出机器的;跨机后**续聊、读上下文完全正常**,

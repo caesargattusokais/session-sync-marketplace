@@ -1,0 +1,18 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  shell-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash 语法检查(pull/push/git 用不到 gh,跑本地即可)
+        run: |
+          set -e
+          for f in plugins/session-sync/scripts/*.sh; do bash -n "$f"; done
+          bash -n test/e2e.sh
+      - name: puppet 端到端回归测试
+        run: bash test/e2e.sh

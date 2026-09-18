@@ -1,7 +1,7 @@
 ---
 name: session-sync
 description: 跨机器同步 Claude Code 会话记录,支持跨绝对路径恢复续聊
-argument-hint: [setup | push | pull]
+argument-hint: [setup | push | pull | prune]
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash(bash *)
@@ -20,6 +20,10 @@ allowed-tools: Bash(bash *)
 - `/session-sync setup [SHARE_ROOT] [--remote=URL]` → 首次必做,填自己的共享仓库;可选根替换
 - `/session-sync push` → 导出本机全部会话到共享仓库(hook 在 SessionEnd 也会做)
 - `/session-sync pull` → 从共享仓库拉取并自动归位(hook 在 SessionStart 也会做)
+- `/session-sync prune [--delete]` → 报告停滞会话;确认后再加 --delete 才删
+ 
+脱敏默认开启(SANITIZE=1):导出的是把明显密钥替换成 `<REDACTED>` 的副本,本机原文件不动。
+push/pull 自带冲突自愈(pull --rebase / push 被拒自动重试)。
 
 ## 执行(脚本在 allowed-tools 已预批准)
 
