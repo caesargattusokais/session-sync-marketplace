@@ -1,30 +1,36 @@
 #!/usr/bin/env bash
 # =====================================================================
-# session-sync 配置加载器(只读这份文件,不要改它)。
+# session-sync 配置加载器(A 模式:自动归位,无需逐项目映射)。
 #
 # 每台机器的**私有配置**放在插件包之外:
 #     $HOME/.config/session-sync/settings.sh
-# 由 `scripts/setup.sh` 引导每个安装者填写自己机器上的值
-# (共享仓库路径/remote、项目别名<->本机路径、git 提交身份)。
+# 由 `scripts/setup.sh` 引导生成(本文件只会读取它,请勿改本加载器)。
 #
-# 这样多人安装同一份插件互不干扰,插件升级也不会覆盖各自的配置。
+# settings.sh 可含的字段:
+#   SESSION_HOME         本机 ~/.claude/projects(一般保持默认)
+#   SHARE_ROOT           共享会话仓库在本机的路径
+#   ROOT_MAP             可选「远端根 -> 本机根」替换规则(关联数组)
+#   GIT_USER / GIT_EMAIL git 提交身份(仅插件自动 commit 用)
+#
+# ROOT_MAP 为空 = 两台机器的会话绝对路径完全相同,可直接精确归位;
+# 若两端路径不同,加一条即可。例:
+#   declare -A ROOT_MAP=( ["/home/alen"]="/home/fengye" )
+#   表示「远端 /home/alen 开头的会话,在本机放到 /home/fengye 下对应的位置」。
 # =====================================================================
 
-# 私有配置文件路径(可用环境变量覆盖,便于测试)
 SESSION_SYNC_CONF="${SESSION_SYNC_CONF:-$HOME/.config/session-sync/settings.sh}"
 
-# 先假定空映射,若存在私有配置则加载进来(会被其中的 declare 覆盖)
-declare -A PROJECTS=()
+declare -A ROOT_MAP=()
+SESSION_HOME=""
+SHARE_ROOT=""
+GIT_USER=""
+GIT_EMAIL=""
 
 if [ -f "${SESSION_SYNC_CONF}" ]; then
   # shellcheck disable=SC1090
   source "${SESSION_SYNC_CONF}"
-elif [ "${SESSION_SYNC_STRICT:-0}" = "1" ]; then
-  echo "[session-sync] 未找到配置 ${SESSION_SYNC_CONF}。请先运行 scripts/setup.sh 填写你自己的设置。" >&2
-  exit 1
 fi
 
-# 其余项的默认值(可被 settings.sh 覆盖)
 SESSION_HOME="${SESSION_HOME:-$HOME/.claude/projects}"
 SHARE_ROOT="${SHARE_ROOT:-$HOME/session-sync-share}"
 GIT_USER="${GIT_USER:-session-sync}"

@@ -1,75 +1,74 @@
 # session-sync — 跨机器共享 Claude Code 会话的插件
 
-把本机的 Claude Code 会话(`~/.claude/projects/*.jsonl`)按**项目别名**同步到多台机器。
-会话以「别名」为键归位,所以**各机器绝对路径不同也没有关系**,两端 `claude --resume` 都能续上同一个对话。
+把本机的 Claude Code 会话(`~/.claude/projects/*.jsonl`)同步到多台机器,**自动归位、
+无需逐项目映射**。两端 `claude --resume` 都能续上同一个对话——即使各机器绝对路径不同。
 
-**设计原则:每个安装者填自己的。** 插件包内不含任何仓库地址 / 路径 / 身份默认值。
-每台机器运行一次 `scripts/setup.sh`,把安装者**自己**的共享仓库与项目映射写进
-`~/.config/session-sync/settings.sh`(插件包之外),多人安装互不干扰,插件升级也不覆盖配置。
+**A 模式原则:用户只管装、只管用。**
+- 导出默认包含**全部**本地会话。
+- 导入自动归位:两端路径相同 = 零配置;不同 = 一条可选的「根替换规则」。
+- 没命中规则 → 放进 `_unclaimed/` 待认领,不丢、不阻塞,补规则再 pull 即自动归位。
 
 ## 目录结构
 
 ```
-session-sync-marketplace/            ← 这里是 git 私有仓库,推到安装者各自的 GitHub
-├── .claude-plugin/marketplace.json  ← 分发目录(marketplace)
+session-sync-marketplace/
+├── .claude-plugin/marketplace.json
 └── plugins/session-sync/
     ├── .claude-plugin/plugin.json
-    ├── hooks/hooks.json             ← SessionStart→import / SessionEnd→export(自动同步)
+    ├── hooks/hooks.json           ← SessionStart→import / SessionEnd→export
     ├── scripts/
-    │   ├── config.sh                ← 配置加载器(别改),读各机自己的 settings.sh
-    │   ├── setup.sh                 ← 【每个安装者运行一次】填自己的仓库+路径
-    │   ├── export.sh                ← 本机会话 -> 共享仓库
-    │   ├── import.sh                ← 共享仓库 -> 本机归位
-    │   └── pathcode.sh              ← 绝对路径 <-> cwd 编码 互转
-    └── skills/session-sync/SKILL.md ← 手动命令 /session-sync setup|push|pull
+    │   ├── config.sh             ← 配置加载器(别改),读各机 settings.sh
+    │   ├── setup.sh              ← 【每机运行一次】填共享仓库(+可选根替换)
+    │   ├── export.sh             ← 导出本机全部会话 -> 共享仓库
+    │   ├── import.sh             ← 共享仓库 -> 自动归位到本机
+    │   └── pathcode.sh           ← cwd 编码工具
+    └── skills/session-sync/SKILL.md
 ```
 
-## 工作原理
+## 怎么工作
 
-1. 会话文件在 `~/.claude/projects/<cwd编码>/<sessionId>.jsonl`,`<cwd编码>` 是启动目录
-   绝对路径转成 `-home-fengye-proj` 这类字符串。
-2. 会话身份 = 「cwd 编码目录」+「文件名里的 sessionId」。把 A 机某个 `.jsonl` 放到
-   B 机对应项目目录下、文件名不变,B 机就能 `--resume` 原样续聊。
-3. 本插件把搬运自动化:共享仓库里按**项目别名**分目录存会话,每机 import 按自己路径归位。
+1. 会话在 `~/.claude/projects/<cwd编码>/<sessionId>.jsonl`,编码 = 启动绝对路径的 `-a-b-c` 形式。
+2. 会话身份 = 「cwd 编码目录」+「文件名里的 sessionId」。把 A 机某 `.jsonl` 放到 B 机对应项目的
+   编码目录下、名不变,B 机 `--resume` 就能续聊。
+3. 本插件导出全部(无过滤),导入时按下面优先级归位:
+   - 本机已有同名编码目录 → 直接放(两端路径相同,零配置)
+   - ROOT_MAP 规则(远端根→本机根)命中 → 解码后映射归位
+   - 否则 → `_unclaimed/`,提示补规则
 
-## 每台机器要做的(≈4 步)
+## 每台机器安装(≈3 步)
 
-### 1. 安装插件(每台各一次)
+### 1. 装插件
 ```bash
 claude plugin marketplace add <插件所在仓库或本地路径>
 claude plugin install session-sync@<marketplace>
 ```
-装好后插件落在各机本地;`~/.config/session-sync/settings.sh` 由你在下一步自己生成,
-不跟在插件包里。
 
-### 2. 用 setup 填自己本机的配置
+### 2. 填自己的共享仓库(各机一次)
 ```bash
-# 交互式:
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh"
-# 或一次性传参:
-bash ~/.claude/plugins/cache/<市场名>/plugins/session-sync/scripts/setup.sh \
-     "$HOME/session-sync-share"  myrepo="$HOME/myproject"  other="/workspace/other"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh" "$HOME/session-sync-share" \
+     --remote=<你自己的共享会话仓库URL>
 ```
-这会生成 `~/.config/session-sync/settings.sh`,含:
-- `SHARE_ROOT` : 本机这个「共享会话仓库」的路径
-- `PROJECTS`   : 项目**别名** -> 本机绝对路径(别名是跨机共享的钥匙,两端一致;路径各自填)
+- 交互模式可顺手填「根替换规则」(只有两端路径不同时才需要,可空)。
+- 生成的 settings 在 `~/.config/session-sync/settings.sh`(插件包外,升级不覆盖)。
 
-### 3. 建好自己的共享会话仓库(git 私有仓库,推你自己的 GitHub)
-```bash
-git init "$HOME/session-sync-share" && cd "$HOME/session-sync-share"
-git commit --allow-empty -m init
-git remote add origin <你的共享会话仓库 URL> && git push -u origin HEAD
-```
-> 「插件仓库」和「共享会话仓库」可以不同名——都需要你 `git init` 后推你自己的 GitHub。
-> 本机测试阶段共享仓库没有 remote 也能用(脚本会落在本地,另一台再 pull)。
-
-### 4. 使用
+### 3. 用
 - 手动:`/session-sync push` / `/session-sync pull`
-- 自动:hook 在会话开始(SessionStart)拉、结束(SessionEnd)推
-  (不想要自动同步,删掉插件里的 `hooks/hooks.json` 即可只用手动)。
+- 自动:hook 在 SessionStart 拉、SessionEnd 推;不想要就删 `hooks/hooks.json`。
+
+「共享会话仓库」和「插件仓库」可不同名,各自 git init 后推你自己的 (建议私有) GitHub。
+
+## 根替换规则(什么时候需要、怎么写)
+
+两台机器**会话绝对路径相同**(如同一用户名、同一目录布局) → **不用写**。
+不同(如 `/home/alen` vs `/home/fengye`),在 settings.sh 加一条即可:
+```bash
+declare -A ROOT_MAP=( ["/home/alen"]="/home/fengye" )
+```
+含义:凡是远端 `/home/alen` 下的会话(含其子目录),在本机放到 `/home/fengye` 对应位置。
 
 ## 限制(请知悉)
 
 - 会话 jsonl 里的「工具调用绝对路径」是导出机器的;跨机后**续聊、读上下文完全正常**,
-  但要让 B 机脚本直接操作原路径的文件,需保证 B 机该路径下也有文件。
-- hook 全自动同步;网络/仓库不可达时改用手动 `/session-sync`。
+  但要让 B 机脚本直接操作原路径文件,需保证 B 机该路径下也有文件。
+- 历史会话**整包明文**进入共享仓库;共享仓库务必用**私有**,避免泄露 token/项目私密。
+- 共享仓库建议私有(用户自己的多台设备之间同步,私有完全够,还更安全)。
