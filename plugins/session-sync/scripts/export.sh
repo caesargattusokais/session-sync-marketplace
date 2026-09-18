@@ -5,8 +5,11 @@ set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${PLUGIN_DIR}/config.sh"
+source "${PLUGIN_DIR}/lock.sh"
 source "${PLUGIN_DIR}/sanitize.sh"
 source "${PLUGIN_DIR}/gitutil.sh"
+
+acquire_lock || exit 0
 
 [ -d "${SESSION_HOME}" ] || { echo "[session-sync] 未发现会话目录 ${SESSION_HOME}"; exit 0; }
 

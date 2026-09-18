@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# =====================================================================
+# 进程锁(scripts/lock.sh)单元测试:正常获取/释放、遗留锁自愈、他人在用不强抢。
+# 独立子进程运行,避免 EXIT trap 与其它测试互相覆盖。
+# 用法: bash test/lock.sh
+# =====================================================================
+set -uo pipefail
+
+S="$(cd "$(dirname "${BASH_SOURCE[0]}")/../plugins/session-sync" && pwd)"
+SIM="$(mktemp -d)"; trap 'rm -rf "$SIM"' EXIT
+
+SHARE_ROOT="${SIM}/share"          # 提前对 source 的 lock.sh 生效
+source "${S}/scripts/lock.sh"
+
+PASS=0; FAIL=0
+ok(){  echo "  ✓ $1"; PASS=$((PASS+1)); }
+bad(){ echo "  ✗ FAIL: $1"; FAIL=$((FAIL+1)); }
+
+# 1. 正常获取/释放
+if acquire_lock; then ok "进程锁可获取"; else bad "进程锁获取失败"; fi
+[ -d "${LOCK_DIR}" ] || bad "获取后锁目录应存在"
+release_lock
+[ ! -d "${LOCK_DIR}" ] && ok "release_lock 移除锁目录" || bad "release_lock 未移除锁目录"
+
+# 2. 遗留锁自愈:持锁 PID 已死 → 应自动清除并抢到
+mkdir -p "${LOCK_DIR}"; echo 999999 > "${LOCK_DIR}/pid"
+if acquire_lock; then ok "遗留锁(持锁进程已死)自动清除并抢到"; else bad "遗留锁未能自愈"; fi
+release_lock
+
+# 3. 他人在用:不应强抢,超时返回 1;且不误删他人锁
+_LOCK_MAX=3; _LOCK_SLEEP=0.05        # 缩小超时,加速测试
+mkdir -p "${LOCK_DIR}"; echo "$$" > "${LOCK_DIR}/pid"
+if acquire_lock; then bad "他人持有的锁被错误抢到"; else ok "他人持有锁时不强抢(超时放弃)"; fi
+[ -d "${LOCK_DIR}" ] && ok "失败释放未误删他人锁" || bad "失败释放误删了他人锁"
+
+echo
+echo "── 锁测试: PASS=${PASS} FAIL=${FAIL} ──"
+[ "${FAIL}" -eq 0 ] || exit 1
+echo "ALL PASSED"

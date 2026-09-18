@@ -19,6 +19,10 @@ jobs:
           set -e
           for f in plugins/session-sync/scripts/*.sh; do bash -n "$f"; done
           bash -n test/e2e.sh
+          bash -n test/lock.sh
+      - name: 进程锁单元测试(正常/遗留自愈/不强抢)
+        shell: bash
+        run: bash test/lock.sh
       - name: end-to-end 回归测试(真实平台;Window 用 Git Bash 的 bash + perl)
         shell: bash
         run: bash test/e2e.sh

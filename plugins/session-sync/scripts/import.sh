@@ -6,8 +6,11 @@ set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${PLUGIN_DIR}/config.sh"
+source "${PLUGIN_DIR}/lock.sh"
 source "${PLUGIN_DIR}/gitutil.sh"
 source "${PLUGIN_DIR}/pathcode.sh"
+
+acquire_lock || exit 0
 
 # 用一条「根=源前缀」规则映射编码到目标机路径;命中返回 0
 map_code() {
