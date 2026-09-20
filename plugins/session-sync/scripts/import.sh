@@ -54,7 +54,7 @@ gitutil_pull
 
 [ -d "${SHARE_ROOT}/sessions" ] || { echo "[session-sync] 共享仓库里还没有 sessions/,跳过"; exit 0; }
 
-restored=0; unclaimed=0; identity_placed=0
+restored=0; unclaimed=0; unclaimed_noid=0; identity_placed=0
 for src in "${SHARE_ROOT}"/sessions/*/; do
   [ -d "${src}" ] || continue
   code="$(basename "${src}")"
@@ -73,6 +73,7 @@ for src in "${SHARE_ROOT}"/sessions/*/; do
   else
     dest="${SESSION_HOME}/_unclaimed/${code}"
     unclaimed=$(( unclaimed + 1 ))
+    [ -f "${src}/.identity" ] && : || unclaimed_noid=$(( unclaimed_noid + 1 ))
     echo "[session-sync] (待认领) ${code}${src_host:+ (来自 ${src_host})} -> ${dest}"
   fi
   mkdir -p "${dest}"
@@ -103,11 +104,18 @@ for src in "${SHARE_ROOT}"/sessions/*/; do
 done
 
 echo "[session-sync] 导入完成:处理 ${restored} 个会话目录(其中身份归位 ${identity_placed})"
+[ "${unclaimed}" -gt 0 ] && hasid=$(( unclaimed - unclaimed_noid )) || hasid=0
 if [ "${unclaimed}" -gt 0 ]; then
   echo
   echo "  ⚠ ${unclaimed} 个目录未能自动归位。"
-  echo "    · 这些项目在共享仓里带 git 身份,但本机没找到同名 checkout。"
-  echo "      在本机 clone 对应仓库(任意路径)后重跑 pull --rescan 即自动归位。"
+  if [ "${hasid}" -gt 0 ]; then
+    echo "    · 带项目身份但没有本机同名 checkout:在本机 clone 对应仓库(任意路径)后重跑"
+    echo "      pull --rescan 即自动归位。"
+  fi
+  if [ "${unclaimed_noid}" -gt 0 ]; then
+    echo "    · 这些会话还没带项目身份(旧版导出、无 .identity):请在其来源机升到新版 plugin 并"
+    echo "      push 一次,补上 .identity 后重跑 pull 即可按仓库身份自动归位。"
+  fi
   echo "    · 或显式给一条根替换(优先于自动): setup.sh 里声明 -A ROOT_MAP=( [\"/远端根\"]=\"/本机根\" )。"
 fi
 echo "[session-sync] 用 claude --resume (或重启会话) 即可继续别机的对话"
