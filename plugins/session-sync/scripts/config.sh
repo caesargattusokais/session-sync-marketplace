@@ -12,6 +12,10 @@
 #   PRUNE_DAYS     停滞清理的「无改动天数」阈值(默认 30;仅 dry-run 报告)
 #   DEBUG_HOST     手动指定“主机标识”(默认取 hostname)
 #   ALLOW_PUBLIC_PUSH  1=显式放行向公开 GitHub 仓库 push(默认拦截,见 gitutil.sh)
+#   IDENTITY_ROOTS    本机各项目 checkout 的根(换行分隔)。空=自动($HOME+盘根),
+#                     由自动归位(项目身份)扫描;通常无需设置
+#   IDENTITY_SCAN_DEPTH 上述根下扫描 git checkout 的目录层数(默认 3)
+#   IDENTITY_CACHE_TTL  身份索引缓存秒数(默认 21600=6h)
 # =====================================================================
 
 SESSION_SYNC_CONF="${SESSION_SYNC_CONF:-$HOME/.config/session-sync/settings.sh}"
@@ -25,6 +29,10 @@ SANITIZE=""
 PRUNE_DAYS=""
 DEBUG_HOST=""
 ALLOW_PUBLIC_PUSH=""
+IDENTITY_ROOTS=""
+IDENTITY_SCAN_DEPTH=""
+IDENTITY_CACHE_TTL=""
+IDENTITY_CACHE_FILE=""
 
 if [ -f "${SESSION_SYNC_CONF}" ]; then
   # shellcheck disable=SC1090
@@ -39,3 +47,6 @@ SANITIZE="${SANITIZE:-1}"
 PRUNE_DAYS="${PRUNE_DAYS:-30}"
 ALLOW_PUBLIC_PUSH="${ALLOW_PUBLIC_PUSH:-0}"
 DEBUG_HOST="${DEBUG_HOST:-$(hostname 2>/dev/null || echo "unknown-host")}"
+IDENTITY_SCAN_DEPTH="${IDENTITY_SCAN_DEPTH:-3}"
+IDENTITY_CACHE_TTL="${IDENTITY_CACHE_TTL:-21600}"
+IDENTITY_CACHE_FILE="${IDENTITY_CACHE_FILE:-$HOME/.config/session-sync/.identity-cache}"

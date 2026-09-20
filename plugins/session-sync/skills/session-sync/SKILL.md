@@ -12,7 +12,8 @@ allowed-tools: Bash(bash *)
 
 跨机器共享本机的 Claude Code 会话(`~/.claude/projects/` 下的 .jsonl)。
 自动归位,不依赖逐项目映射:导出默认包含全部会话,导入时按「本机已有同编码路径 / 一条可选的
-根替换规则 ROOT_MAP / $HOME 猜测」自动放回对应项目,`claude --resume` 即可续聊。
+根替换规则 ROOT_MAP / **项目身份(git remote,自动)** / $HOME 猜测」自动放回对应项目,`claude --resume` 即可续聊。
+新 clone 仓库后重跑 `pull --rescan` 强制重建本机项目身份索引。
 
 > 支持 Linux / macOS / Windows(Windows 原生需 Git for Windows,见 README「跨平台」)。
 > 配置在插件包之外(`~/.config/session-sync/settings.sh`),各机各一份。
@@ -22,6 +23,7 @@ allowed-tools: Bash(bash *)
 - `/session-sync setup [SHARE_ROOT] [--remote=URL]` → 首次必做,填自己的共享仓库;可选根替换
 - `/session-sync push`   → 导出本机全部会话到共享仓库(hook 在 SessionEnd 也会做)
 - `/session-sync pull`   → 从共享仓库拉取并自动归位(hook 在 SessionStart 也会做)
+- `/session-sync pull --rescan` → 强制重建本机项目身份索引后拉取归位(新 clone 仓库后跑一次即自动归位)
 - `/session-sync prune [--delete]` → 报告停滞会话;确认后再加 --delete 才删
 - `/session-sync list [--json|-t] [--q 词] [--host 词] [--pull]` → 列出共享仓库里全部(跨机)会话
 - `/session-sync show <sessionId> [--no-thinking] [--full] [--html]` → 把单条会话还原成可读文本
@@ -46,7 +48,8 @@ push/pull 自带冲突自愈。list/show/export 只读脱敏副本,可直接用�
   ```
 - pull:
   ```bash
-  bash "${CLAUDE_SKILL_DIR}/../../scripts/import.sh"
+  bash "${CLAUDE_SKILL_DIR}/../../scripts/import.sh"            # 自动归位(含项目身份)
+  bash "${CLAUDE_SKILL_DIR}/../../scripts/import.sh" --rescan   # 新 clone 仓库后强制重建索引再归位
   ```
 - prune:
   ```bash
@@ -65,4 +68,5 @@ push/pull 自带冲突自愈。list/show/export 只读脱敏副本,可直接用�
   bash "${CLAUDE_SKILL_DIR}/../../scripts/view.sh" export <outdir> [--no-thinking]
   ```
 
-规则:两端绝对路径相同 → 零配置;不同 → 一条 ROOT_MAP;未命中 → 进 `_unclaimed/`,补规则后再 pull。
+规则:两端绝对路径相同 → 零配置;不同 → 项目身份(git remote)自动归位,clone 仓库后跑 `pull --rescan`;
+不想用启发式可写 ROOT_MAP 显式覆盖;仍未命中 → 进 `_unclaimed/`,补规则再 pull。

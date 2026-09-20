@@ -8,6 +8,7 @@ source "${PLUGIN_DIR}/config.sh"
 source "${PLUGIN_DIR}/lock.sh"
 source "${PLUGIN_DIR}/sanitize.sh"
 source "${PLUGIN_DIR}/gitutil.sh"
+source "${PLUGIN_DIR}/identity.sh"
 
 acquire_lock || exit 0
 
@@ -48,6 +49,20 @@ for codedir in "${SESSION_HOME}"/*/; do
   _ident="host=${DEBUG_HOST} sanitize=$([ "${SANITIZE}" = "1" ] && echo yes || echo no)"
   if [ ! -f "${dst}/.source" ] || ! grep -qF "${_ident}" "${dst}/.source"; then
     printf 'host=%s date=%s sanitize=%s\n' "${DEBUG_HOST}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$([ "${SANITIZE}" = "1" ] && echo yes || echo no)" > "${dst}/.source"
+  fi
+
+  # 项目身份(用 origin 仓库的规范化 git remote;跨机同仓库可自动归位)
+  r="" tl=""
+  origin_cwd="$(session_origin_cwd "${codedir}"/*.jsonl 2>/dev/null)"
+  if [ -n "${origin_cwd}" ]; then
+    line="$(git_identity_of "${origin_cwd}" 2>/dev/null || true)"
+    [ -n "$line" ] && { tl="${line%$'\n'*}"; r="${line##*$'\n'}"; }
+  fi
+  if [ -n "${r}" ]; then
+    if [ ! -f "${dst}/.identity" ] || \
+       [ "$(cat "${dst}/.identity" 2>/dev/null)" != "$(printf 'remote=%s\ntoplevel=%s' "${r}" "${tl}")" ]; then
+      printf 'remote=%s\ntoplevel=%s\n' "${r}" "${tl}" > "${dst}/.identity"
+    fi
   fi
 
   n="$(ls "${dst}"/*.jsonl 2>/dev/null | wc -l)"

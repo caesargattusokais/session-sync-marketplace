@@ -7,7 +7,12 @@
           {
             "type": "command",
             "command": "bash",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/import.sh"],
+            "args": [
+              "-c",
+              "p=$(printf %s \"$1\" | perl -pe 's@\\\\@/@g'); exec bash \"$p/scripts/import.sh\"",
+              "session-sync",
+              "${CLAUDE_PLUGIN_ROOT}"
+            ],
             "shell": "bash"
           }
         ]
@@ -20,7 +25,12 @@
           {
             "type": "command",
             "command": "bash",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/export.sh"],
+            "args": [
+              "-c",
+              "p=$(printf %s \"$1\" | perl -pe 's@\\\\@/@g'); exec bash \"$p/scripts/export.sh\"",
+              "session-sync",
+              "${CLAUDE_PLUGIN_ROOT}"
+            ],
             "shell": "bash"
           }
         ]

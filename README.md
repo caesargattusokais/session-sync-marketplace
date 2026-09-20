@@ -21,6 +21,7 @@ session-sync-marketplace/
     │   ├── setup.sh              ← 【每机运行一次】填共享仓库(+可选根替换)
     │   ├── export.sh             ← 导出本机全部会话 -> 共享仓库
     │   ├── import.sh             ← 共享仓库 -> 自动归位到本机
+    │   ├── identity.sh          ← 【项目身份】git remote 规范化/本机 checkout 扫描/身份归位
     │   └── pathcode.sh           ← cwd 编码工具
     └── skills/session-sync/SKILL.md
 ```
@@ -32,8 +33,26 @@ session-sync-marketplace/
    编码目录下、名不变,B 机 `--resume` 就能续聊。
 3. 本插件导出全部(无过滤),导入时按下面优先级归位:
    - 本机已有同名编码目录 → 直接放(两端路径相同,零配置)
-   - ROOT_MAP 规则(远端根→本机根)命中 → 解码后映射归位
+   - ROOT_MAP 规则(远端根→本机根)命中 → 解码后映射归位(显式,永远赢过启发式)
+   - **项目身份(自动,新增)** → 会话自带 git remote 身份;本机扫描自己的 git checkout,按 remote 认领并
+     落到本机那棵 checkout 的编码目录,同时把会话内 cwd 前缀改写成本机路径 → 续聊直接回到本地目录
+   - 无身份的 $HOME 同根猜测(仅当无 ROOT_MAP 时)
    - 否则 → `_unclaimed/`,提示补规则
+
+## 项目身份归位(零配置的核心,自动)
+
+新造一台同仓库的机器,不同根路径也能**自动**把会话放回对应项目,不用写 ROOT_MAP。原理:
+
+- **身份 = 规范的 git remote**。会话在哪个 git 仓库里启动,导出端就把那个仓库的 `origin` remote
+  (统一大写/协议/`.git` 后缀 → `host/owner/repo`)连同 `toplevel` 写进 `sessions/<编码>/.identity`。
+- **本机 checkout 索引**。导入端扫描本机 `$HOME`(或盘根)下的 git 仓库,建 `remote → 本地路径` 索引并
+  缓存到 `~/.config/session-sync/.identity-cache`(默认 6h TTL)。
+- **命中即归位**。`.identity` 里的 remote 在本机索引命中 → 会话落到
+  `cwd_encode(本机checkout路径)`,`--resume` 直接进那棵仓库;会话内 cwd 前缀一并改成本机路径。
+- 新 clone 了仓库(任意路径)后重跑 `/session-sync pull --rescan` 强制重建索引即自动归位(排除了
+  `node_modules` 等,扫描深 3 层)。
+
+> 只有**进 git 且有共享 remote** 的项目能身份归位。纯本地 / 非 git 项目仍走上方 ①/②/④/⑤ 现有路径,不受影响。
 
 ## 每台机器安装(≈3 步)
 
@@ -91,7 +110,7 @@ declare -A ROOT_MAP=( ["/home/alen"]="/home/fengye" )
 - **来源标记(host)** —— 每份导出的会话记下「哪台主机、是否脱敏」导出、以及首次写入时间,`sessions/<编码>/.source`,pull 时展示来源。
   同一主机反复导出内容不变时不重写 → 没有新会话就不会无谓地每轮产生空提交。
 - **停滞清理(/session-sync prune)** —— 报告「共享里有但本机没有、且多日未更新(默认 30 天)」的会话;默认**只报告不删**,确认后加 `--delete` 才真删(害怕误删另一端在用的,不建议自动删)。
-- **CI(可选)** —— `test/e2e.sh` 端到端回归 + GitHub Actions(`.github/workflows/test.yml`)自动跑语法检查与测试。
+- **CI(可选)** —— `test/e2e.sh`(端到端回归)+ `test/identity.sh`(项目身份归位)+ GitHub Actions(`.github/workflows/test.yml`)自动跑语法检查与测试。
 
 ## 限制(请知悉)
 
