@@ -183,11 +183,22 @@ sanitize_broken_toolcalls() {
     my $path = shift;
     open my $IN, "<:raw", $path or exit 0;
     my @lines = <$IN>; close $IN;
-    my $changed = 0;
+    # 阶段1:纯字节级快速预扫,只定位「疑似残破」的行,不做 JSON 解码。
+    # 对无残破的大会话(常达数十MB,如 100MB 级)这一步是纯正则扫描(C 速度),
+    # 一个疑似都没有 → 整文件逐字节放行,完全不碰 JSON::PP → 避免每次 import 都
+    # 把巨型会话全量重编码(实测会把 claude 启动卡在 hook 上数分钟)。
+    my @cand;
     for my $i (0..$#lines) {
       my $raw = $lines[$i];
-      # 快速失败:本行不含 tool_use/tool_result 就跳过(逐字节保留)
       next unless $raw =~ /"type"\s*:\s*"(?:tool_use|tool_result)"/;
+      if    ($raw =~ /"type"\s*:\s*"tool_use"/)    { push @cand, $i if $raw =~ /"id"\s*:\s*""/  || $raw !~ /"id"\s*:/; }
+      elsif ($raw =~ /"type"\s*:\s*"tool_result"/) { push @cand, $i if $raw =~ /"tool_use_id"\s*:\s*""/ || $raw !~ /"tool_use_id"\s*:/; }
+    }
+    exit 0 unless @cand;
+    # 阶段2:仅对疑似行做 JSON 解析确认残破后才重写(逐字节保留其它行)。
+    my $changed = 0;
+    for my $i (@cand) {
+      my $raw = $lines[$i];
       my $obj;
       next unless eval { $obj = JSON::PP->new->utf8(1)->decode($raw); 1 };
       my $c = $obj->{message}{content};
