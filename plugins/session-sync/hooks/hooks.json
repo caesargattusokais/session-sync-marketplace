@@ -5,16 +5,15 @@
         "matcher": "*",
         "hooks": [
           {
+            "type": "command",
             "command": "bash",
+            "shell": "bash",
             "args": [
               "-c",
-              "r=${CLAUDE_PLUGIN_ROOT:-}; r=$(printf %s \"$r\" | perl -pe 's@\\\\@/@g'); if [ -z \"$r\" ]; then for h in \"$HOME\" \"$USERPROFILE\" \"$APPDATA/Claude\"; do [ -n \"$h\" ] || continue; h=$(printf %s \"$h\" | perl -pe 's@\\\\@/@g'); for p in \"$h/.claude/plugins\" \"$h/plugins\"; do [ -d \"$p\" ] || continue; r=$(find \"$p\" -maxdepth 9 -type d -path '*session-sync*/scripts' 2>/dev/null | sort | tail -1 | sed 's#/scripts##'); [ -n \"$r\" ] && break 2; done; done; fi; exec bash \"$r/scripts/import.sh\""
-            ],
-            "shell": "bash",
-            "type": "command"
+              "r=${CLAUDE_PLUGIN_ROOT:-}\nr=$(printf %s \"$r\" | perl -pe 's@\\\\@/@g')\nif [ -n \"$r\" ] && [ -f \"$r/scripts/import.sh\" ]; then exec bash \"$r/scripts/import.sh\"; fi\nfor b in \"$HOME/.claude\" \"$USERPROFILE/.claude\" \"$APPDATA/Claude\" \"$LOCALAPPDATA/Claude\" \"${XDG_CONFIG_HOME:-$HOME/.config}/claude\"; do\n  [ -n \"$b\" ] || continue\n  b=$(printf %s \"$b\" | perl -pe 's@\\\\@/@g')\n  [ -d \"$b\" ] || continue\n  f=$(find \"$b\" -maxdepth 9 -type f -name import.sh -path '*session-sync*' 2>/dev/null | head -1)\n  [ -n \"$f\" ] && exec bash \"$f\"\ndone\necho \"[session-sync] hook \u81ea\u5b9a\u4f4d\u5931\u8d25:\u627e\u4e0d\u5230 import.sh  (HOME=$HOME USERPROFILE=$USERPROFILE APPDATA=$APPDATA LOCALAPPDATA=$LOCALAPPDATA)\" >&2\nexit 0"
+            ]
           }
-        ],
-        "matcher": "*"
+        ]
       }
     ],
     "SessionEnd": [
@@ -22,16 +21,15 @@
         "matcher": "*",
         "hooks": [
           {
+            "type": "command",
             "command": "bash",
+            "shell": "bash",
             "args": [
               "-c",
-              "r=${CLAUDE_PLUGIN_ROOT:-}; r=$(printf %s \"$r\" | perl -pe 's@\\\\@/@g'); if [ -z \"$r\" ]; then for h in \"$HOME\" \"$USERPROFILE\" \"$APPDATA/Claude\"; do [ -n \"$h\" ] || continue; h=$(printf %s \"$h\" | perl -pe 's@\\\\@/@g'); for p in \"$h/.claude/plugins\" \"$h/plugins\"; do [ -d \"$p\" ] || continue; r=$(find \"$p\" -maxdepth 9 -type d -path '*session-sync*/scripts' 2>/dev/null | sort | tail -1 | sed 's#/scripts##'); [ -n \"$r\" ] && break 2; done; done; fi; exec bash \"$r/scripts/export.sh\""
-            ],
-            "shell": "bash",
-            "type": "command"
+              "r=${CLAUDE_PLUGIN_ROOT:-}\nr=$(printf %s \"$r\" | perl -pe 's@\\\\@/@g')\nif [ -n \"$r\" ] && [ -f \"$r/scripts/export.sh\" ]; then exec bash \"$r/scripts/export.sh\"; fi\nfor b in \"$HOME/.claude\" \"$USERPROFILE/.claude\" \"$APPDATA/Claude\" \"$LOCALAPPDATA/Claude\" \"${XDG_CONFIG_HOME:-$HOME/.config}/claude\"; do\n  [ -n \"$b\" ] || continue\n  b=$(printf %s \"$b\" | perl -pe 's@\\\\@/@g')\n  [ -d \"$b\" ] || continue\n  f=$(find \"$b\" -maxdepth 9 -type f -name export.sh -path '*session-sync*' 2>/dev/null | head -1)\n  [ -n \"$f\" ] && exec bash \"$f\"\ndone\necho \"[session-sync] hook \u81ea\u5b9a\u4f4d\u5931\u8d25:\u627e\u4e0d\u5230 export.sh  (HOME=$HOME USERPROFILE=$USERPROFILE APPDATA=$APPDATA LOCALAPPDATA=$LOCALAPPDATA)\" >&2\nexit 0"
+            ]
           }
-        ],
-        "matcher": "*"
+        ]
       }
     ]
   }
