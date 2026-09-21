@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/anthropics/claude-code/main/.claude-plugin/plugin-schema.json",
   "name": "session-sync",
   "displayName": "Session Sync",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "跨机器同步 Claude Code 会话记录,支持跨绝对路径恢复续聊;内置 list/show/export 会话浏览器;项目身份(remote)自动归位。",
   "author": {
     "name": "fengye"

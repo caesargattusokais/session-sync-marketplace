@@ -148,16 +148,64 @@ resolve_by_identity() {
 }
 
 # 拷贝落下时把 cwd 前缀 "cwd":"<from>" -> <to>(仅落地副本,不改共享仓)。
-# from 为空 / to==from / 无 perl => 原样复制。
+# from 按 JSON 转义(反斜杠/引号)去匹配,以覆盖 Windows 源根(会话内 cwd 为 `D:\\ai-project`
+# 这种转义形态)与正斜杠两类;to 用本机路径(正斜杠)。from 空 / to==from / 无 perl => 原样复制。
+# ⚠ 必须「字节级」改写:不要加 `-C`/`:encoding(UTF-8)` 层。Perl 一旦对 STDIN 解码成字符、
+# 又对 shell 重定向出的 STDOUT 编回,两边层不配对会把本就 UTF-8 的脚本酒成双重编码(如「重」→
+# `Ã©Ã¡Â`),整个落地副本出现大面积乱码(实测 10.4MB→12.0MB)。无层时 `<`/`>` 逐字节透传,
+# 仅命中 ASCII needle 处替换,其余(含全部多字节中文)原样保留。
 cwd_rewrite_copy() {
   local in="$1" out="$2" from="$3" to="$4"
   if [ -z "$from" ] || [ -z "$to" ] || [ "$from" = "$to" ] || ! command -v perl >/dev/null 2>&1; then
     cp -f "$in" "$out"; return
   fi
-  REWRITE_FROM="$from" REWRITE_TO="$to" perl -CS -pe '
+  REWRITE_FROM="$from" REWRITE_TO="$to" perl -pe '
     my $from=$ENV{REWRITE_FROM}; my $to=$ENV{REWRITE_TO};
+    $from =~ s/([\\"])/\\$1/g;                 # JSON 转义 src:text 里的反斜杠/引号(与 jsonl 内 cwd 写法对齐)
     my $needle = qq!"cwd":"$from!;
     my $i = index($_, $needle);
     if ($i >= 0) { substr($_, $i, length($needle), qq!"cwd":"$to!) }
   ' "$in" > "$out.$$" 2>/dev/null && mv "$out.$$" "$out" || { rm -f "$out.$$"; cp -f "$in" "$out"; }
+}
+
+# 防御性中和残破的工具调用块(来源机强杀中断遗留)。
+# 现象:message.content 里出现 `{"type":"tool_use","id":"","name":""}` 或 `tool_result` 的
+# `"tool_use_id":""`,重放给 Anthropic 兼容网关(含 Claude/Ark)后会 400「参数无效」,
+# 导致 claude --resume 彻底无法续聊。这里把这类空引用块就地替换成 `{"type":"text","text":""}`
+# 保留所有其它正文/字节。只重写「确实含残破块」的行,其余行逐字节原样保留。
+sanitize_broken_toolcalls() {
+  local f="$1"
+  if ! command -v perl >/dev/null 2>&1 || ! perl -MJSON::PP -e 1 >/dev/null 2>&1; then
+    return 0   # 无 JSON::PP(核心模块,5.14+ 基本都有)就跳过,不强改
+  fi
+  perl -e '
+    use JSON::PP;
+    my $path = shift;
+    open my $IN, "<:raw", $path or exit 0;
+    my @lines = <$IN>; close $IN;
+    my $changed = 0;
+    for my $i (0..$#lines) {
+      my $raw = $lines[$i];
+      # 快速失败:本行不含 tool_use/tool_result 就跳过(逐字节保留)
+      next unless $raw =~ /"type"\s*:\s*"(?:tool_use|tool_result)"/;
+      my $obj;
+      next unless eval { $obj = JSON::PP->new->utf8(1)->decode($raw); 1 };
+      my $c = $obj->{message}{content};
+      next unless ref($c) eq "ARRAY";
+      my $dirty = 0;
+      for my $b (@$c) {
+        next unless ref($b) eq "HASH" && $b->{type};
+        if ($b->{type} eq "tool_use"    && ($b->{id}//"") eq "")            { $b = {type=>"text",text=>""}; $dirty=1 }
+        elsif ($b->{type} eq "tool_result" && ($b->{tool_use_id}//"") eq "") { $b = {type=>"text",text=>""}; $dirty=1 }
+      }
+      $lines[$i] = JSON::PP->new->utf8(1)->encode($obj) . "\n" if $dirty;
+      $changed++ if $dirty;
+    }
+    exit 0 if $changed == 0;
+    open my $OUT, ">:raw", "$path.$$" or exit 0;
+    print $OUT @lines; close $OUT;
+    rename "$path.$$", $path or do { unlink "$path.$$"; exit 0 };
+    0;
+  ' "$1"
+  return 0
 }

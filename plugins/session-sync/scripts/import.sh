@@ -79,7 +79,15 @@ for src in "${SHARE_ROOT}"/sessions/*/; do
   mkdir -p "${dest}"
   before="$(ls "${dest}"/*.jsonl 2>/dev/null | wc -l)"
 
-  # 项目身份:cwd 改写(prefix origin_toplevel -> 本机 checkout 路径),仅命中身份时
+  # 是否通过 ROOT_MAP 归位;若是,记下 源根 -> 本机根 用于 cwd 前缀改写
+  rmap_from="" rmap_to=""
+  for r in "${!ROOT_MAP[@]}"; do
+    if map_code "${code}" "${r}" "${ROOT_MAP[${r}]}" >/dev/null 2>&1; then
+      rmap_from="${r}"; rmap_to="${ROOT_MAP[${r}]}"; break
+    fi
+  done
+
+  # cwd 改写目标(prefix 远端根 -> 本机根),身份优先,ROOT_MAP 兜底:
   ipath="" itl=""
   remote="$(identity_remote_of "${src}")"
   if [ -n "${remote}" ]; then ipath="${IDENT_CACHE[$remote]:-}"; itl="$(identity_toplevel_of "${src}")"; fi
@@ -89,16 +97,23 @@ for src in "${SHARE_ROOT}"/sessions/*/; do
     do_rewrite=1
   fi
 
-  if [ "${do_rewrite}" = "1" ]; then
-    for f in "${src}"/*.jsonl; do [ -e "${f}" ] || continue; cwd_rewrite_copy "${f}" "${dest}/$(basename "${f}")" "${itl}" "${ipath}"; done
-    identity_placed=$(( identity_placed + 1 ))
+  rw_from="" rw_to="" ; via=""
+  if [ "${do_rewrite}" = "1" ]; then rw_from="${itl}"; rw_to="${ipath}"; via="identity";
+  elif [ -n "${rmap_from}" ] && [ "${rmap_from}" != "${rmap_to}" ]; then rw_from="${rmap_from}"; rw_to="${rmap_to}"; via="ROOT_MAP"; fi
+
+  if [ -n "${rw_from}" ] && [ -n "${rw_to}" ] && [ "${rw_from}" != "${rw_to}" ]; then
+    for f in "${src}"/*.jsonl; do [ -e "${f}" ] || continue; cwd_rewrite_copy "${f}" "${dest}/$(basename "${f}")" "${rw_from}" "${rw_to}"; done
   else
     for f in "${src}"/*.jsonl; do [ -e "${f}" ] || continue; cp -f "${f}" "${dest}/"; done
   fi
+  # 防御:来源机强杀中断会留「空 id 的 tool_use / 空 tool_use_id 的 tool_result」,
+  # 落地后就地中和成 text,保证任何历史来源的会话重放都能被网关接受。
+  for f in "${src}"/*.jsonl; do [ -e "${f}" ] || continue; sanitize_broken_toolcalls "${dest}/$(basename "${f}")"; done
+  [ "${do_rewrite}" = "1" ] && identity_placed=$(( identity_placed + 1 ))
 
   after="$(ls "${dest}"/*.jsonl 2>/dev/null | wc -l)"
   extra=""
-  [ "${do_rewrite}" = "1" ] && extra=" | cwd->${ipath}"
+  [ -n "${via}" ] && extra=" | cwd->${rw_to}(${via})"
   echo "[session-sync] 导入 ${code} -> ${dest}  (新增 $(( after - before )) 份${src_host:+ | 来源 ${src_host}}${extra})"
   restored=$(( restored + 1 ))
 done
