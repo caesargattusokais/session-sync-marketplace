@@ -58,7 +58,9 @@ restored=0; unclaimed=0; unclaimed_noid=0; identity_placed=0
 for src in "${SHARE_ROOT}"/sessions/*/; do
   [ -d "${src}" ] || continue
   code="$(basename "${src}")"
-  ls "${src}"/*.jsonl >/dev/null 2>&1 || continue
+  have_any=0
+  for _f in "${src}"/*.jsonl "${src}"/*/.shard; do [ -e "${_f}" ] && { have_any=1; break; }; done
+  [ "${have_any}" = "1" ] || continue
 
   # 展示来源
   src_host=""
@@ -104,14 +106,26 @@ for src in "${SHARE_ROOT}"/sessions/*/; do
   if [ "${do_rewrite}" = "1" ]; then rw_from="${itl}"; rw_to="${ipath}"; via="identity";
   elif [ -n "${rmap_from}" ] && [ "${rmap_from}" != "${rmap_to}" ]; then rw_from="${rmap_from}"; rw_to="${rmap_to}"; via="ROOT_MAP"; fi
 
+  # 统一会话来源:单文件直接引用,分片目录按序拼回一个 .jsonl(纯字节拼接,part 数值序)。
+  SRCWORK="$(mktemp -d)"
+  for f in "${src}"/*.jsonl; do [ -e "${f}" ] && cp -f "${f}" "${SRCWORK}/"; done
+  for d in "${src}"*/; do
+    [ -d "${d}" ] || continue
+    [ -f "${d}/.shard" ] || continue
+    name="$(basename "${d}")"
+    : > "${SRCWORK}/${name}.jsonl"
+    for p in "${d}"/part_*; do [ -e "${p}" ] && cat "${p}" >> "${SRCWORK}/${name}.jsonl"; done
+  done
+
   if [ -n "${rw_from}" ] && [ -n "${rw_to}" ] && [ "${rw_from}" != "${rw_to}" ]; then
-    for f in "${src}"/*.jsonl; do [ -e "${f}" ] || continue; cwd_rewrite_copy "${f}" "${dest}/$(basename "${f}")" "${rw_from}" "${rw_to}"; done
+    for f in "${SRCWORK}"/*.jsonl; do [ -e "${f}" ] || continue; cwd_rewrite_copy "${f}" "${dest}/$(basename "${f}")" "${rw_from}" "${rw_to}"; done
   else
-    for f in "${src}"/*.jsonl; do [ -e "${f}" ] || continue; cp -f "${f}" "${dest}/"; done
+    for f in "${SRCWORK}"/*.jsonl; do [ -e "${f}" ] || continue; cp -f "${f}" "${dest}/"; done
   fi
   # 防御:来源机强杀中断会留「空 id 的 tool_use / 空 tool_use_id 的 tool_result」,
   # 落地后就地中和成 text,保证任何历史来源的会话重放都能被网关接受。
-  for f in "${src}"/*.jsonl; do [ -e "${f}" ] || continue; sanitize_broken_toolcalls "${dest}/$(basename "${f}")"; done
+  for f in "${SRCWORK}"/*.jsonl; do [ -e "${f}" ] || continue; sanitize_broken_toolcalls "${dest}/$(basename "${f}")"; done
+  rm -rf "${SRCWORK}"
   [ "${do_rewrite}" = "1" ] && identity_placed=$(( identity_placed + 1 ))
 
   after="$(ls "${dest}"/*.jsonl 2>/dev/null | wc -l)"

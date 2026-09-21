@@ -17,6 +17,26 @@ acquire_lock || exit 0
 mkdir -p "${SHARE_ROOT}/sessions"
 cd "${SHARE_ROOT}"
 
+# 会话文件 sha(GitHub pre-receive 之外的去重依据:源未变则不重切,避免大文件每轮都产生提交)
+sh_sha() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1 || md5sum "$1" 2>/dev/null | cut -d' ' -f1 || echo ""; }
+
+# <src_file> <dst_dir> <id> <base> :把已脱敏的 src_file 按字节切成 <SHARD_MAX 字节的 part_* 分片,
+# 写 manifest .shard;源 sha 未变则跳过(不重切)。分片目录形如 sessions/<code>/<id>/,导入时按序拼回。
+shard_session() {
+  local srcfile="$1" dstdir="$2" id="$3" base="$4" manifest cursha npart
+  manifest="${dstdir}/${id}/.shard"
+  cursha="$(sh_sha "${srcfile}")"
+  if [ -f "${manifest}" ] && [ "$(sed -n 's/^src_sha=//p' "${manifest}")" = "${cursha}" ]; then
+    return 0
+  fi
+  mkdir -p "${dstdir}/${id}"
+  rm -f "${dstdir}/${id}"/part_*
+  split -b "${SHARD_MAX}" -d -a 3 "${srcfile}" "${dstdir}/${id}/part_"
+  npart="$(ls "${dstdir}/${id}"/part_* 2>/dev/null | wc -l)"
+  rm -f "${dstdir}/${base}"      # 顶掉旧的单文件形态
+  printf 'name=%s\nparts=%s\nsrc_sha=%s\n' "${id}" "${npart}" "${cursha}" > "${manifest}"
+}
+
 exported=0
 for codedir in "${SESSION_HOME}"/*/; do
   [ -d "${codedir}" ] || continue
@@ -28,19 +48,29 @@ for codedir in "${SESSION_HOME}"/*/; do
   dst="${SHARE_ROOT}/sessions/${code}"
   mkdir -p "${dst}"
 
-  # 脱敏复制(不碰源文件);SANITIZE=0 时原样复制
-  redacted=0
+  # 脱敏复制(不碰源文件);SANITIZE=0 时原样复制;超 SHARD_MAX 的会话改分片存储。
+  redacted=0; sharded=0
   for f in "${codedir}"/*.jsonl; do
     [ -e "${f}" ] || continue
+    base="$(basename "${f}")"; id="${base%.jsonl}"
     if [ "${SANITIZE}" = "1" ]; then
-      if [ -f "${dst}/$(basename "${f}")" ] && cmp -s "${f}" "${dst}/$(basename "${f}")"; then
-        cp -f "${f}" "${dst}/$(basename "${f}")"
+      if [ -f "${dst}/${base}" ] && cmp -s "${f}" "${dst}/${base}"; then
+        src="${dst}/${base}"                      # 已是脱敏副本且内容未变,复用
       else
-        sanitize_file "${f}" "${dst}/$(basename "${f}")"
-        redacted=$(( redacted + 1 ))
+        sanitize_file "${f}" "${dst}/${base}"
+        src="${dst}/${base}"; redacted=$(( redacted + 1 ))
       fi
     else
-      cp -f "${f}" "${dst}/$(basename "${f}")"
+      src="${f}"
+    fi
+
+    sz="$(wc -c < "${src}" 2>/dev/null || echo 0)"
+    if [ "${sz}" -gt "${SHARD_MAX}" ]; then
+      shard_session "${src}" "${dst}" "${id}" "${base}"
+      sharded=$(( sharded + 1 ))
+    else
+      [ "${src}" != "${dst}/${base}" ] && cp -f "${src}" "${dst}/${base}"
+      [ -d "${dst}/${id}" ] && rm -rf "${dst}/${id}"   # 清掉此前变小时残留的分片目录
     fi
   done
 
@@ -67,6 +97,7 @@ for codedir in "${SESSION_HOME}"/*/; do
 
   n="$(ls "${dst}"/*.jsonl 2>/dev/null | wc -l)"
   [ "${redacted}" -gt 0 ] && note=" (脱敏 ${redacted} 份)" || note=""
+  [ "${sharded}" -gt 0 ] && note="${note} (分片 ${sharded} 份)"
   echo "[session-sync] 导出 ${code} -> sessions/${code}  (${n} 会话${note})"
   exported=$(( exported + 1 ))
 done
