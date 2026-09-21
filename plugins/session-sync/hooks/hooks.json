@@ -7,13 +7,11 @@
           {
             "type": "command",
             "command": "bash",
+            "shell": "bash",
             "args": [
               "-c",
-              "p=$(printf %s \"$1\" | perl -pe 's@\\\\@/@g'); exec bash \"$p/scripts/import.sh\"",
-              "session-sync",
-              "${CLAUDE_PLUGIN_ROOT}"
-            ],
-            "shell": "bash"
+              "r=${CLAUDE_PLUGIN_ROOT:-}; r=$(printf %s \"$r\" | perl -pe 's@\\\\@/@g'); [ -n \"$r\" ] || r=$(find \"${HOME:-}\"/.claude/plugins -maxdepth 8 -type d -path '*session-sync*/scripts' 2>/dev/null | sort | tail -1 | sed 's#/scripts##'); exec bash \"$r/scripts/import.sh\""
+            ]
           }
         ]
       }
@@ -25,13 +23,11 @@
           {
             "type": "command",
             "command": "bash",
+            "shell": "bash",
             "args": [
               "-c",
-              "p=$(printf %s \"$1\" | perl -pe 's@\\\\@/@g'); exec bash \"$p/scripts/export.sh\"",
-              "session-sync",
-              "${CLAUDE_PLUGIN_ROOT}"
-            ],
-            "shell": "bash"
+              "r=${CLAUDE_PLUGIN_ROOT:-}; r=$(printf %s \"$r\" | perl -pe 's@\\\\@/@g'); [ -n \"$r\" ] || r=$(find \"${HOME:-}\"/.claude/plugins -maxdepth 8 -type d -path '*session-sync*/scripts' 2>/dev/null | sort | tail -1 | sed 's#/scripts##'); exec bash \"$r/scripts/export.sh\""
+            ]
           }
         ]
       }

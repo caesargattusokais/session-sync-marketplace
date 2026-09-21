@@ -87,7 +87,9 @@ mkdir -p "$SHARE/sessions/${SC2}"
 printf 'remote=gitlab.com/some/other\ntoplevel=/elsewhere/nope\n' > "$SHARE/sessions/${SC2}/.identity"
 printf '{"type":"user","cwd":"/elsewhere/nope"}\n' > "$SHARE/sessions/${SC2}/lost.jsonl"
 SESSION_SYNC_CONF="$SIM/conf.a" bash "$S/scripts/import.sh" >/dev/null 2>&1
-fh "$SIM/home/_unclaimed/${SC2}/lost.jsonl" "无本地 checkout → 落 _unclaimed 不丢"
+# 跨根/无本地 checkout → 也必须落到顶层(不能嵌套 _unclaimed/,否则 claude --resume 搜不到)
+fh "$SIM/home/${SC2}/lost.jsonl" "无本地 checkout → 落顶层编码目录(非嵌套)",
+[ ! -e "$SIM/home/_unclaimed/${SC2}/lost.jsonl" ] && ok "不再落嵌套 _unclaimed/(resume 能搜到)" || bad "仍落 _unclaimed 嵌套"
 
 # ---------- 5. scan 深度 + node_modules 剪枝 ----------
 mkdir -p "$SIM/trg/simple/.git"

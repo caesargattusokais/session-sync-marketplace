@@ -71,10 +71,13 @@ for src in "${SHARE_ROOT}"/sessions/*/; do
   if [ -n "${target}" ]; then
     dest="${SESSION_HOME}/${target}"
   else
-    dest="${SESSION_HOME}/_unclaimed/${code}"
+    # 必须落到顶层 project 目录(哪怕跨根、无本地 checkout):claude --resume
+    # 只搜 $SESSION_HOME 下一层的目录,不搜嵌套的 _unclaimed/ 子目录——
+    # 一旦嵌套,Windows 上「一行 claude --resume」就找不到本机同步过来的会话。
+    dest="${SESSION_HOME}/${code}"
     unclaimed=$(( unclaimed + 1 ))
     [ -f "${src}/.identity" ] && : || unclaimed_noid=$(( unclaimed_noid + 1 ))
-    echo "[session-sync] (待认领) ${code}${src_host:+ (来自 ${src_host})} -> ${dest}"
+    echo "[session-sync] (跨根/无本地 checkout,仍落到顶层可 resume) ${code}${src_host:+ (来自 ${src_host})} -> ${dest}"
   fi
   mkdir -p "${dest}"
   before="$(ls "${dest}"/*.jsonl 2>/dev/null | wc -l)"
@@ -122,15 +125,7 @@ echo "[session-sync] 导入完成:处理 ${restored} 个会话目录(其中身�
 [ "${unclaimed}" -gt 0 ] && hasid=$(( unclaimed - unclaimed_noid )) || hasid=0
 if [ "${unclaimed}" -gt 0 ]; then
   echo
-  echo "  ⚠ ${unclaimed} 个目录未能自动归位。"
-  if [ "${hasid}" -gt 0 ]; then
-    echo "    · 带项目身份但没有本机同名 checkout:在本机 clone 对应仓库(任意路径)后重跑"
-    echo "      pull --rescan 即自动归位。"
-  fi
-  if [ "${unclaimed_noid}" -gt 0 ]; then
-    echo "    · 这些会话还没带项目身份(旧版导出、无 .identity):请在其来源机升到新版 plugin 并"
-    echo "      push 一次,补上 .identity 后重跑 pull 即可按仓库身份自动归位。"
-  fi
-  echo "    · 或显式给一条根替换(优先于自动): setup.sh 里声明 -A ROOT_MAP=( [\"/远端根\"]=\"/本机根\" )。"
+  echo "  ⚠ ${unclaimed} 个目录未能按本地 checkout 归位,但已放到顶层目录 cwd 编码处,"
+  echo "    可用 claude --resume 直接续聊(只是这些会话的 cwd 可能不代表本机既有路径)。"
 fi
-echo "[session-sync] 用 claude --resume (或重启会话) 即可继续别机的对话"
+echo "[session-sync] 用 claude --resume 即可跨机继续别机的对话(无需本机有对应 checkout)"
